@@ -44,7 +44,7 @@ impl From<std::io::Error> for PeerError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NodeDesc {
     pub protocol_version: i32,
     pub services: NodeServiceSet,
@@ -77,7 +77,6 @@ impl Node {
         }
     }
 
-    // TODO add timeout
     pub async fn connect_with(&mut self, remote_addr: SocketAddr) -> PeerResult<NodeDesc> {
         let mut connection = NodeConnection::new(remote_addr).await?;
 

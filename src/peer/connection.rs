@@ -26,12 +26,12 @@ impl NodeConnection {
 
     pub async fn proceed_conversation<O, T: ConversationTopicHandler<O>>(&mut self, handler: T) -> PeerResult<O> {
         let mut handler = handler;
-        let init = handler.initial_message();
-        if let Some(message) = init.message {
+        let initial_action = handler.initial_action();
+        if let Some(message) = initial_action.message {
             log::debug!("sending {:?}", message);
             self.write.write_all(&message.to_bytes()).await?
         }
-        if init.topic_finished {
+        if initial_action.topic_finished {
             return handler.outcome();
         }
 
@@ -56,12 +56,11 @@ impl NodeConnection {
                                 if handler_response.topic_finished {
                                     break;
                                 }
-                            },
+                            }
                             Err(err) => {
                                 log::warn!("ignoring incoming message, because we couldn't decode it: {}", err)
                             }
                         }
-
                     }
                 }
             }

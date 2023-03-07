@@ -1,4 +1,4 @@
-use std::io;
+use std::{ascii, io};
 use std::net::SocketAddr;
 use std::ops::BitAnd;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -112,6 +112,7 @@ impl VersionMessage {
     }
 }
 
+/// _A "verack" packet shall be sent if the version packet was accepted._
 #[derive(Default, Debug)]
 pub struct VerAckMessage {}
 
@@ -181,13 +182,23 @@ impl Command {
 impl TryFrom<&[u8]> for Command {
     type Error = PeerError;
 
+
     fn try_from(value: &[u8]) -> PeerResult<Self> {
+        fn format_byte_array_as_string(bytes: &[u8]) -> String {
+            let mut result = String::new();
+            for &c in bytes {
+                result.push_str(std::str::from_utf8(&ascii::escape_default(c).collect::<Vec<u8>>()).unwrap())
+            }
+            result
+        }
+
         for command in Command::iter() {
             if command.as_bytes() == value {
                 return Ok(command);
             }
         }
-        Err(PeerError::from("not a known command"))
+        let printable = format_byte_array_as_string(value);
+        Err(PeerError::from(format!("'{}' ({:?}) do not represent a known bitcoin command", printable, value)))
     }
 }
 
@@ -199,8 +210,9 @@ pub(super) struct RawMessage {
     pub payload: Vec<u8>,
 }
 
-const THIS_NET_MAGIC_VALUE: u32 = MAGIC_VALUE_TESTNET3;
-const MAGIC_VALUE_TESTNET3: u32 = 0x0709110B; // 0B 11 09 07
+const THIS_NET_MAGIC_VALUE: u32 = MAGIC_VALUE_REGTEST;
+// const MAGIC_VALUE_TESTNET3: u32 = 0x0709110B;
+const MAGIC_VALUE_REGTEST: u32 = 0xDAB5BFFA;
 
 impl<'a> RawMessage {
     pub fn new(magic: u32, command: Command, payload: Vec<u8>) -> Self {
@@ -275,6 +287,7 @@ impl<'a> RawMessage {
         parser.skip_bytes(12)?;
         let payload_len = parser.read_u32_le()?;
         let complete = HEADER_LEN + payload_len as usize <= parser.remaining();
+
         Ok(complete)
     }
 

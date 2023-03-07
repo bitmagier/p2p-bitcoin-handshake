@@ -9,7 +9,7 @@ pub struct ConversationAction {
 }
 
 pub trait ConversationTopicHandler<O> {
-    fn initial_message(&mut self) -> ConversationAction;
+    fn initial_action(&mut self) -> ConversationAction;
     fn on_message(&mut self, message: ProtocolMessage) -> PeerResult<ConversationAction>;
     /// the result of this conversation, once it's finished
     fn outcome(self) -> PeerResult<O>;
@@ -48,7 +48,7 @@ impl HandshakeInitConversationTopic {
 }
 
 impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
-    fn initial_message(&mut self) -> ConversationAction {
+    fn initial_action(&mut self) -> ConversationAction {
         let message = ProtocolMessage::Version(VersionMessage::new(self.remote_addr, &self.me));
         self.version_msg_sent = true;
         ConversationAction {

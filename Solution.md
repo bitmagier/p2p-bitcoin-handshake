@@ -12,7 +12,7 @@ e.g. for Ubuntu jammy (22.04):
 apt install build-essential autoconf automake clang libboost-all-dev
 ```
 
-Build real bitcoin node:
+Build real bitcoin node [Bitcoin core version 0.13.0]()
 ```bash
 git submodule update --init
 cd bitcoin
@@ -23,12 +23,12 @@ make # use "-j N" for N parallel jobs
 
 Run real bitcoin node:
 ```bash
-mkdir -p /tmp/bitcoin_data && src/bitcoind -datadir=/tmp/bitcoin_data -prune=550 -testnet -bind=127.0.0.1:18334 -assumevalid=000000004e9044f75d5e40a6ee87a608bd06404c7ddcd5c609e9fba96a073ed8
+mkdir -p /tmp/bitcoin_data && bitcoin/src/bitcoind -datadir=/tmp/bitcoin_data -chain=regtest -bind=127.0.0.1
 ```
 
-Test handshake implementation:
+Test handshake implementation against default port for regtest chain: 18445
 ```bash
-cargo run -- --remote 127.0.0.1:18334 
+cargo run -- --remote 127.0.0.1:18445 
 ```
 
 
@@ -38,5 +38,6 @@ cargo run -- --remote 127.0.0.1:18334
 
 
 # TODOS:
+- tests
 - visibility
 - unit tests

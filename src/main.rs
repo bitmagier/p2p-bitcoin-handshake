@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use clap::Parser;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+use tokio::time::{timeout, Duration};
 use tokio::io::{self};
 use crate::peer::{Node, NodeDesc};
 use crate::peer::wire_protocol::{NodeService, NodeServiceSet};
@@ -13,7 +14,7 @@ mod peer;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Remote IP socket address. E.g. 127.0.0.1:18334
+    /// Remote IP socket address. E.g. 127.0.0.1:18445 for a local regression testnet node
     #[arg(short, long)]
     remote: SocketAddr,
 }
@@ -33,19 +34,29 @@ async fn main() -> io::Result<()> {
     let args = Args::parse();
 
     let mut node = Node::new(NodeDesc {
-        protocol_version: 70015,
+        protocol_version: 70016,
         services: NodeServiceSet(vec![NodeService::NodeNetwork]),
         sub_ver: "/p2p_showcase.bitmagier:1.0".to_string(),
         start_height: 1,
     });
 
-    match node.connect_with(args.remote).await {
-        Ok(_) => {
-            log::info!("connection to {} established", args.remote);
-            node.close_connection(args.remote);
-        }
-        Err(err) => {
-            log::warn!("connection attempt to {} failed: {}", args.remote, err);
+    let handshake_timeout = Duration::from_secs(3);
+    match timeout(handshake_timeout, node.connect_with(args.remote)).await {
+        Ok(result) => {
+            match result {
+                Ok(node_desc) => {
+                    log::info!("connection + handshake to node @ {} successfully established", args.remote);
+                    log::debug!("Remote node details: {:?}", node_desc);
+                    node.close_connection(args.remote);
+                    log::debug!("connection intentionally closed by us, because this is the end of the showcase");
+                }
+                Err(err) => {
+                    log::warn!("error while communicating with {}: {}", args.remote, err);
+                }
+            }
+        },
+        Err(_) => {
+            log::warn!("handshake timeout")
         }
     }
 
