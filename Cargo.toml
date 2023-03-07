@@ -4,19 +4,18 @@ version = "1.0.0"
 authors = ["Roman Krüger <roman.krueger@mailbox.org>"]
 edition = '2021'
 description = "P2P bitcoin node showcase demonstrating a node handshake"
-rust-version = "1.67"
 
 [dev-dependencies]
 hex-literal = "0.3"
-rstest = "0"
+rstest = "0.16"
 
 [dependencies]
-clap = { version = "4.1", features = ["derive", "color"] }
+clap = { version = "4.0", features = ["derive", "color"] }
 log = "0.4"
 rand = "0.8"
 sha2 = "0.10"
 simple_logger = { version = "4.0", features = ["colors", "timestamps"] }
 strum = { version = "0.24.1", features = ["strum_macros", "derive"] }
-tokio = { version = "1.26.0", features = ["rt", "net", "io-util", "macros", "time"] }
+tokio = { version = "1.26", features = ["rt", "net", "io-util", "macros", "time"] }
 
 

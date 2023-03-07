@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::ops::BitAnd;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rand::{Rng, thread_rng};
+use rand::{Rng, RngCore, thread_rng};
 use sha2::{Digest, Sha256};
 use sha2::digest::FixedOutput;
 use strum::{EnumIter, IntoEnumIterator};
@@ -14,7 +14,9 @@ use crate::peer::buffer::{ByteBufferComposer, ByteBufferParser};
 #[derive(Debug)]
 pub enum ProtocolMessage {
     Version(VersionMessage),
-    VerAck(VerAckMessage),
+    Verack(VerackMessage),
+    Ping(PingMessage),
+    Pong(PongMessage),
 }
 
 impl ProtocolMessage {
@@ -114,13 +116,33 @@ impl VersionMessage {
 
 /// _A "verack" packet shall be sent if the version packet was accepted._
 #[derive(Default, Debug)]
-pub struct VerAckMessage {}
+pub struct VerackMessage {}
 
-impl VerAckMessage {
+impl VerackMessage {
     fn to_raw_message(&self) -> RawMessage {
-        RawMessage::new(THIS_NET_MAGIC_VALUE, Command::VerAck, vec![])
+        RawMessage::new(THIS_NET_MAGIC_VALUE, Command::Verack, vec![])
     }
 }
+
+#[derive(Default, Debug)]
+pub struct PingMessage {}
+
+impl PingMessage {
+    fn to_raw_message(&self) -> RawMessage {
+        unimplemented!()
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct PongMessage {}
+
+impl PongMessage {
+    fn to_raw_message(&self) -> RawMessage {
+        let mut rng = thread_rng();
+        RawMessage::new(THIS_NET_MAGIC_VALUE, Command::Pong, rng.next_u64().to_le_bytes().to_vec())
+    }
+}
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeServiceSet(pub Vec<NodeService>);
@@ -163,10 +185,14 @@ impl NodeService {
 }
 
 
-#[derive(EnumIter)]
+#[derive(Debug, EnumIter)]
 pub enum Command {
     Version,
-    VerAck,
+    Verack,
+    Sendcmpct,
+    Ping,
+    Pong,
+    Wtxidrelay,
 }
 
 impl Command {
@@ -174,7 +200,11 @@ impl Command {
     fn as_bytes(&self) -> &[u8; 12] {
         match self {
             Command::Version => b"version\0\0\0\0\0",
-            Command::VerAck => b"verack\0\0\0\0\0\0",
+            Command::Verack => b"verack\0\0\0\0\0\0",
+            Command::Sendcmpct => b"sendcmpct\0\0\0",
+            Command::Ping => b"ping\0\0\0\0\0\0\0\0",
+            Command::Pong => b"pong\0\0\0\0\0\0\0\0",
+            Command::Wtxidrelay => b"wtxidrelay\0\0",
         }
     }
 }
@@ -296,11 +326,12 @@ impl<'a> RawMessage {
             return Err(PeerError::from(format!("unrecognized net magic value: {}", self.magic)));
         }
 
-        let message = match self.command {
-            Command::Version => ProtocolMessage::Version(VersionMessage::from_raw_message(self)?),
-            Command::VerAck => ProtocolMessage::VerAck(VerAckMessage::default())
-        };
-        Ok(message)
+        match self.command {
+            Command::Version => Ok(ProtocolMessage::Version(VersionMessage::from_raw_message(self)?)),
+            Command::Verack => Ok(ProtocolMessage::Verack(VerackMessage::default())),
+            Command::Ping => Ok(ProtocolMessage::Ping(PingMessage::default())),
+            _ => Err(PeerError::from(format!("'{:?}' command not implemented", self.command))),
+        }
     }
 
     fn verify_checksum(payload: &[u8], checksum: &[u8]) -> PeerResult<()> {
@@ -315,24 +346,13 @@ impl<'a> RawMessage {
 impl From<ProtocolMessage> for RawMessage {
     fn from(message: ProtocolMessage) -> Self {
         match message {
-            ProtocolMessage::Version(message) => RawMessage::from(message),
-            ProtocolMessage::VerAck(message) => RawMessage::from(message)
+            ProtocolMessage::Version(message) => message.to_raw_message(),
+            ProtocolMessage::Verack(message) => message.to_raw_message(),
+            ProtocolMessage::Ping(message) => message.to_raw_message(),
+            ProtocolMessage::Pong(message) => message.to_raw_message(),
         }
     }
 }
-
-impl From<VersionMessage> for RawMessage {
-    fn from(m: VersionMessage) -> Self {
-        m.to_raw_message()
-    }
-}
-
-impl From<VerAckMessage> for RawMessage {
-    fn from(m: VerAckMessage) -> Self {
-        m.to_raw_message()
-    }
-}
-
 
 fn sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::default();

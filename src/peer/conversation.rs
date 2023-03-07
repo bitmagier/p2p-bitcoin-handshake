@@ -1,11 +1,20 @@
 use std::net::SocketAddr;
 
 use crate::peer::{NodeDesc, PeerError, PeerResult};
-use crate::peer::wire_protocol::{ProtocolMessage, VerAckMessage, VersionMessage};
+use crate::peer::wire_protocol::{PongMessage, ProtocolMessage, VerackMessage, VersionMessage};
 
 pub struct ConversationAction {
     pub message: Option<ProtocolMessage>,
     pub topic_finished: bool,
+}
+
+impl ConversationAction {
+    pub fn nop() -> Self {
+        ConversationAction {
+            message: None,
+            topic_finished: false,
+        }
+    }
 }
 
 pub trait ConversationTopicHandler<O> {
@@ -61,14 +70,14 @@ impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
         match message {
             ProtocolMessage::Version(m) => {
                 self.version_msg_received = Some(m);
-                let reply_msg = ProtocolMessage::VerAck(VerAckMessage::default());
+                let reply_msg = ProtocolMessage::Verack(VerackMessage::default());
                 let topic_finished = self.version_msg_sent && self.version_ack_msg_received;
                 Ok(ConversationAction {
                     message: Some(reply_msg),
                     topic_finished,
                 })
             }
-            ProtocolMessage::VerAck(_) => {
+            ProtocolMessage::Verack(_) => {
                 self.version_ack_msg_received = true;
                 if !self.version_msg_sent {
                     Err(PeerError::from("Protocol error: received a 'verack', but no 'version' was sent yet"))
@@ -79,6 +88,15 @@ impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
                         topic_finished,
                     })
                 }
+            }
+            ProtocolMessage::Ping(_) => {
+                Ok(ConversationAction {
+                    message: Some(ProtocolMessage::Pong(PongMessage::default())),
+                    topic_finished: false,
+                })
+            }
+            ProtocolMessage::Pong(_) => {
+                Ok(ConversationAction::nop())
             }
         }
     }

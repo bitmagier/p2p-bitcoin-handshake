@@ -34,13 +34,13 @@ async fn main() -> io::Result<()> {
     let args = Args::parse();
 
     let mut node = Node::new(NodeDesc {
-        protocol_version: 70016,
+        protocol_version: 70016, // matches bitcoin core v24
         services: NodeServiceSet(vec![NodeService::NodeNetwork]),
         sub_ver: "/p2p_showcase.bitmagier:1.0".to_string(),
         start_height: 1,
     });
 
-    let handshake_timeout = Duration::from_secs(3);
+    let handshake_timeout = Duration::from_secs(5);
     match timeout(handshake_timeout, node.connect_with(args.remote)).await {
         Ok(result) => {
             match result {
