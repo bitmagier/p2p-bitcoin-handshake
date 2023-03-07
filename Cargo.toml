@@ -1,0 +1,22 @@
+[package]
+name = "p2p_bitcoin_showcase"
+version = "0.1.0"
+authors = ["Roman Krüger <roman.krueger@mailbox.org>"]
+edition = '2021'
+description = "P2P bitcoin node showcase demonstrating a node handshake"
+rust-version = "1.67"
+
+[dev-dependencies]
+hex-literal = "0.3.4"
+rstest = "0.16.0"
+
+[dependencies]
+clap = { version = "4.1.8", features = ["derive", "color"] }
+log = "0.4.17"
+rand = "0.8.5"
+sha2 = "0.10.6"
+simple_logger = { version = "4.0.0", features = ["colors", "timestamps"] }
+strum = { version = "0.24.1", features = ["strum_macros", "derive"] }
+tokio = { version = "1.26.0", features = ["rt", "net", "io-util", "macros"] }
+
+
