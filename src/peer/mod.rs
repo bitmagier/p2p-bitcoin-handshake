@@ -77,6 +77,7 @@ impl Node {
         }
     }
 
+    //TODO ToSocketAddrs
     pub async fn connect_with(&mut self, remote_addr: SocketAddr) -> PeerResult<NodeDesc> {
         let mut connection = NodeConnection::new(remote_addr).await?;
 

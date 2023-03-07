@@ -26,7 +26,7 @@ cd ..
 
 Run Bitcoin Core node with a minimal chain and bind it to 127.0.0.1:
 ```bash
-mkdir -p /tmp/bitcoin_data && bitcoin-core/src/bitcoind -datadir=/tmp/bitcoin_data -chain=regtest -bind=127.0.0.1
+mkdir -p /tmp/bitcoin_data && bitcoin-core/src/bitcoind -datadir=/tmp/bitcoin_data -chain=regtest -bind=127.0.0.1 -debug=net
 ```
 
 Test handshake implementation against default port of regtest chain: 18445

@@ -1,4 +1,4 @@
-use std::{ascii, io};
+use std::ascii;
 use std::net::SocketAddr;
 use std::ops::BitAnd;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -9,7 +9,7 @@ use sha2::digest::FixedOutput;
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::peer::{NodeDesc, PeerError, PeerResult};
-use crate::peer::buffer::{ByteBufferComposer, ByteBufferParser};
+use crate::peer::buffer::{ByteBufferComposer, ByteBufferParser, IOBuffer};
 
 #[derive(Debug)]
 pub enum ProtocolMessage {
@@ -189,10 +189,10 @@ impl NodeService {
 pub enum Command {
     Version,
     Verack,
-    Sendcmpct,
+    // Sendcmpct,
     Ping,
     Pong,
-    Wtxidrelay,
+    // Wtxidrelay,
 }
 
 impl Command {
@@ -201,10 +201,10 @@ impl Command {
         match self {
             Command::Version => b"version\0\0\0\0\0",
             Command::Verack => b"verack\0\0\0\0\0\0",
-            Command::Sendcmpct => b"sendcmpct\0\0\0",
+            // Command::Sendcmpct => b"sendcmpct\0\0\0",
             Command::Ping => b"ping\0\0\0\0\0\0\0\0",
             Command::Pong => b"pong\0\0\0\0\0\0\0\0",
-            Command::Wtxidrelay => b"wtxidrelay\0\0",
+            // Command::Wtxidrelay => b"wtxidrelay\0\0",
         }
     }
 }
@@ -241,6 +241,7 @@ pub(super) struct RawMessage {
 }
 
 const THIS_NET_MAGIC_VALUE: u32 = MAGIC_VALUE_REGTEST;
+//TODO use value from Node
 // const MAGIC_VALUE_TESTNET3: u32 = 0x0709110B;
 const MAGIC_VALUE_REGTEST: u32 = 0xDAB5BFFA;
 
@@ -274,63 +275,101 @@ impl<'a> RawMessage {
     }
 
     /// returns the buffer-length of the deserialized message in bytes and the corresponding message object
-    pub fn parse(buffer: &[u8]) -> PeerResult<(usize, RawMessage)> {
-        if !Self::contains_a_complete_message(buffer)? {
-            return Err(io::Error::from(io::ErrorKind::UnexpectedEof))?;
+    // pub fn parse(buffer: &[u8]) -> PeerResult<(usize, RawMessage)> {
+    //     if !Self::contains_a_complete_message(buffer)? {
+    //         return Err(io::Error::from(io::ErrorKind::UnexpectedEof))?;
+    //     }
+    //
+    //     let mut parser = ByteBufferParser::new(buffer);
+    //
+    //     let magic = parser.read_u32_le()?;
+    //     let command = Command::try_from(parser.read(12)?)?;
+    //     let payload_len = parser.read_u32_le()?;
+    //     let checksum: [u8; 4] = parser.read(4)?.try_into().unwrap();
+    //     let payload = parser.read(payload_len as usize)?.to_vec();
+    //
+    //     Self::verify_checksum(&payload, &checksum)?;
+    //
+    //     let message = RawMessage {
+    //         magic,
+    //         command,
+    //         payload,
+    //     };
+    //
+    //     Ok((parser.pos(), message))
+    // }
+
+    /// returns the buffer-length of the deserialized message in bytes and the corresponding message object
+    pub fn try_consume_message(buffer: &mut IOBuffer) -> PeerResult<MessageParseOutcome> {
+        let mut parser = ByteBufferParser::new(buffer.content());
+
+        const HEADER_LEN: usize = 4 + 12 + 4 + 4;
+        if parser.remaining() < HEADER_LEN {
+            return Ok(MessageParseOutcome::NoMessage)
         }
 
-        let mut parser = ByteBufferParser::new(buffer);
-
         let magic = parser.read_u32_le()?;
-        let command = Command::try_from(parser.read(12)?)?;
-        let payload_len = parser.read_u32_le()?;
+        let command_string = parser.read(12).unwrap();
+        log::debug!("receiving command {}", String::from_utf8(Vec::from(command_string)).unwrap());
+        let payload_len = parser.read_u32_le()? as usize;
         let checksum: [u8; 4] = parser.read(4)?.try_into().unwrap();
-        let payload = parser.read(payload_len as usize)?.to_vec();
 
+        if parser.remaining() < payload_len {
+            return Ok(MessageParseOutcome::NoMessage);
+        }
+
+        let payload = parser.read(payload_len as usize)?.to_vec();
         Self::verify_checksum(&payload, &checksum)?;
 
-        let message = RawMessage {
-            magic,
-            command,
-            payload,
+        let command = match Command::try_from(command_string) {
+            Ok(command) => command,
+            Err(err) => {
+                buffer.shift_left(parser.pos());
+                log::warn!("{}", err);
+                return Ok(MessageParseOutcome::SkippedMessage)
+            },
         };
 
-        Ok((parser.pos(), message))
+        buffer.shift_left(parser.pos());
+
+        Ok(MessageParseOutcome::Message(
+            RawMessage {
+                magic,
+                command,
+                payload,
+            }))
     }
 
     /// checks if these bytes are describing a complete message (regarding length and size)
     /// No checksum or content check is done here
-    pub fn contains_a_complete_message(buffer: &[u8]) -> PeerResult<bool> {
-        const HEADER_LEN: usize = 4 + 12 + 4 + 4;
-
-        let mut parser = ByteBufferParser::new(buffer);
-
-        if parser.remaining() < HEADER_LEN {
-            return Ok(false);
-        }
-
-        let magic = parser.read_u32_le()?;
-        if magic != THIS_NET_MAGIC_VALUE {
-            return Err(PeerError::from("magic differs (indicates a different network)"));
-        }
-
-        parser.skip_bytes(12)?;
-        let payload_len = parser.read_u32_le()?;
-        let complete = HEADER_LEN + payload_len as usize <= parser.remaining();
-
-        Ok(complete)
-    }
+    // pub fn contains_a_complete_message(buffer: &[u8]) -> PeerResult<bool> {
+    //     const HEADER_LEN: usize = 4 + 12 + 4 + 4;
+    //
+    //     let mut parser = ByteBufferParser::new(buffer);
+    //
+    //     if parser.remaining() < HEADER_LEN {
+    //         return Ok(false);
+    //     }
+    //
+    //     let magic = parser.read_u32_le()?;
+    //     if magic != THIS_NET_MAGIC_VALUE {
+    //         return Err(PeerError::from("magic differs (indicates a different network)"));
+    //     }
+    //
+    //     parser.skip_bytes(12)?;
+    //     let payload_len = parser.read_u32_le()?;
+    //     log::debug!("payload len {}", payload_len);
+    //     let complete = HEADER_LEN + payload_len as usize <= parser.remaining();
+    //
+    //     Ok(complete)
+    // }
 
     pub fn to_protocol_message(self) -> PeerResult<ProtocolMessage> {
-        if self.magic != THIS_NET_MAGIC_VALUE {
-            return Err(PeerError::from(format!("unrecognized net magic value: {}", self.magic)));
-        }
-
         match self.command {
             Command::Version => Ok(ProtocolMessage::Version(VersionMessage::from_raw_message(self)?)),
             Command::Verack => Ok(ProtocolMessage::Verack(VerackMessage::default())),
             Command::Ping => Ok(ProtocolMessage::Ping(PingMessage::default())),
-            _ => Err(PeerError::from(format!("'{:?}' command not implemented", self.command))),
+            Command::Pong => Ok(ProtocolMessage::Pong(PongMessage::default())),
         }
     }
 
@@ -341,6 +380,12 @@ impl<'a> RawMessage {
             Err(PeerError::from("checksum error"))
         }
     }
+}
+
+pub(super) enum MessageParseOutcome {
+    Message(RawMessage),
+    SkippedMessage,
+    NoMessage,
 }
 
 impl From<ProtocolMessage> for RawMessage {

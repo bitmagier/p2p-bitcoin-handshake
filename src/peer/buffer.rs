@@ -125,7 +125,7 @@ impl ByteBufferComposer {
     }
 }
 
-pub(super) struct IOBuffer {
+pub struct IOBuffer {
     buffer: [u8; 1024],
     /// length of valid content (starts at index 0)
     mark: usize,
