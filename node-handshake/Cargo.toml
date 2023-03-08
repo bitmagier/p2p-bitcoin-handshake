@@ -1,0 +1,13 @@
+[package]
+name = "node-handshake"
+version = "1.0.0"
+authors = ["Roman Krüger <roman.krueger@mailbox.org>"]
+edition = "2021"
+description = "Commandline tool to demonstrate a bitcoin peer connection handshake"
+
+[dependencies]
+net = { path = "../net" }
+log = "0.4"
+simple_logger = { version = "4.0", features = ["colors", "timestamps"] }
+clap = { version = "4.0", features = ["derive", "color"] }
+tokio = { version = "1.26", features = ["rt", "macros", "time"] }

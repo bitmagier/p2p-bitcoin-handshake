@@ -1,0 +1,12 @@
+[package]
+name = "net"
+version = "0.1.0"
+edition = "2021"
+description = "P2P bitcoin network library"
+
+[dependencies]
+log = "0.4"
+rand = "0.8"
+sha2 = "0.10"
+strum = { version = "0.24.1", features = ["strum_macros", "derive"] }
+tokio = { version = "1.26", features = ["net", "io-util", "macros"] }

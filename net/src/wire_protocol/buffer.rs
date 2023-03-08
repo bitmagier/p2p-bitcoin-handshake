@@ -1,7 +1,8 @@
 use std::io;
+use std::mem::size_of;
 use std::net::{IpAddr, SocketAddr};
 
-use crate::peer::wire_protocol::NodeServiceSet;
+use crate::wire_protocol::node::NodeServiceSet;
 
 pub(super) struct ByteBufferParser<'a> {
     buffer: &'a [u8],
@@ -37,35 +38,35 @@ impl<'a> ByteBufferParser<'a> {
 
     pub fn read_u32_le(&mut self) -> io::Result<u32> {
         Ok(u32::from_le_bytes(
-            self.read(4)?.try_into().unwrap()
+            self.read(size_of::<u32>())?.try_into().unwrap()
         ))
     }
 
     pub fn read_i32_le(&mut self) -> io::Result<i32> {
         Ok(i32::from_le_bytes(
-            self.read(4)?.try_into().unwrap()
+            self.read(size_of::<i32>())?.try_into().unwrap()
         ))
     }
 
     pub fn read_u64_le(&mut self) -> io::Result<u64> {
         Ok(u64::from_le_bytes(
-            self.read(8)?.try_into().unwrap()
+            self.read(size_of::<u64>())?.try_into().unwrap()
         ))
     }
 
     pub fn read_i64_le(&mut self) -> io::Result<i64> {
         Ok(i64::from_le_bytes(
-            self.read(8)?.try_into().unwrap()
+            self.read(size_of::<i64>())?.try_into().unwrap()
         ))
     }
 
     fn read_u16_be(&mut self) -> io::Result<u16> {
         Ok(u16::from_be_bytes(
-            self.read(2)?.try_into().unwrap()
+            self.read(size_of::<u16>())?.try_into().unwrap()
         ))
     }
 
-    // without time field
+    /// net address without time field
     pub fn parse_net_addr(&mut self) -> io::Result<(NodeServiceSet, SocketAddr)> {
         let services_mask = self.read_u64_le()?;
         let ip: [u8; 16] = self.read(16)?.try_into().unwrap();
@@ -76,12 +77,6 @@ impl<'a> ByteBufferParser<'a> {
             SocketAddr::new(ip, port)
         ))
     }
-
-    /// 1+  length  varint  (https://en.bitcoin.it/wiki/Protocol_documentation#Variable_length_integer)
-    /// ?   string  char[]
-    // pub fn read_var_string(&self) -> io::Result<String> {
-    //     todo!()
-    // }
 
     fn eof_check(&self, want_bytes: usize) -> io::Result<()> {
         if self.remaining() < want_bytes {
@@ -127,7 +122,7 @@ impl ByteBufferComposer {
 
 pub struct IOBuffer {
     buffer: [u8; 1024],
-    /// length of valid content (starts at index 0)
+    /// length of valid content (content starts at index 0)
     mark: usize,
 }
 

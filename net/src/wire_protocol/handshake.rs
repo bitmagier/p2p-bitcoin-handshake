@@ -1,36 +1,16 @@
 use std::net::SocketAddr;
 
-use crate::peer::{NodeDesc, PeerError, PeerResult};
-use crate::peer::wire_protocol::{PongMessage, ProtocolMessage, VerackMessage, VersionMessage};
-
-pub struct ConversationAction {
-    pub message: Option<ProtocolMessage>,
-    pub topic_finished: bool,
-}
-
-impl ConversationAction {
-    pub fn nop() -> Self {
-        ConversationAction {
-            message: None,
-            topic_finished: false,
-        }
-    }
-}
-
-pub trait ConversationTopicHandler<O> {
-    fn initial_action(&mut self) -> ConversationAction;
-    fn on_message(&mut self, message: ProtocolMessage) -> PeerResult<ConversationAction>;
-    /// the result of this conversation, once it's finished
-    fn outcome(self) -> PeerResult<O>;
-}
-
+use crate::conversation::{ConversationAction, ConversationTopicHandler};
+use crate::error::{PeerError, PeerResult};
+use crate::wire_protocol::messages::{PongMessage, ProtocolMessage, VerackMessage, VersionMessage};
+use crate::wire_protocol::node::NodeDesc;
 
 /// Handshake:
-/// - create TCP connection on host:port (127.0.0.1:18334)
 ///
 /// NodeA <---> NodeB
 ///    __version__ message, replied by __verack__ message (both)
 ///
+/// - create TCP connection
 /// - send __version__ message
 /// - expect __verack__ message
 /// - expect __version__ message
@@ -56,7 +36,9 @@ impl HandshakeInitConversationTopic {
     }
 }
 
-impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
+impl ConversationTopicHandler for HandshakeInitConversationTopic {
+    type Outcome = NodeDesc;
+
     fn initial_action(&mut self) -> ConversationAction {
         let message = ProtocolMessage::Version(VersionMessage::new(self.remote_addr, &self.me));
         self.version_msg_sent = true;
@@ -70,7 +52,7 @@ impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
         match message {
             ProtocolMessage::Version(m) => {
                 self.version_msg_received = Some(m);
-                let reply_msg = ProtocolMessage::Verack(VerackMessage::default());
+                let reply_msg = ProtocolMessage::Verack(VerackMessage::new(self.me.chain));
                 let topic_finished = self.version_msg_sent && self.version_ack_msg_received;
                 Ok(ConversationAction {
                     message: Some(reply_msg),
@@ -91,7 +73,7 @@ impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
             }
             ProtocolMessage::Ping(_) => {
                 Ok(ConversationAction {
-                    message: Some(ProtocolMessage::Pong(PongMessage::default())),
+                    message: Some(ProtocolMessage::Pong(PongMessage::new(self.me.chain))),
                     topic_finished: false,
                 })
             }
@@ -104,7 +86,15 @@ impl ConversationTopicHandler<NodeDesc> for HandshakeInitConversationTopic {
     fn outcome(self) -> PeerResult<NodeDesc> {
         match self.version_msg_received {
             None => Err(PeerError::from("should have a version message from remote node")),
-            Some(m) => Ok(NodeDesc::from(m))
+            Some(msg) => Ok(
+                NodeDesc {
+                    chain: self.me.chain,
+                    protocol_version: msg.protocol_version,
+                    services: msg.services.clone(),
+                    sub_ver: msg.sub_ver.clone(),
+                    start_height: msg.start_height,
+                }
+            )
         }
     }
 }
