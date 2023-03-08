@@ -19,7 +19,7 @@ Compile original Bitcoin core version v24.0.1
 ```bash
 git submodule update --init
 cd bitcoin-core
-# we checkout a stable recent version
+# we checkout a stable recent version to get a consistent result 
 git checkout v24.0.1
 ./autogen.sh
 ./configure --disable-maintainer-mode --disable-wallet --disable-tests --disable-bench --with-gui=no
@@ -35,7 +35,7 @@ mkdir -p /tmp/bitcoin_data && bitcoin-core/src/bitcoind -datadir=/tmp/bitcoin_da
 ```
 
 ---
-Test handshake implementation against default port of regtest chain: 18445
+In another shell, we test the handshake implementation against the default port of regtest chain: 18445
 
 ```bash
 cargo run -- --remote 127.0.0.1:18445 
